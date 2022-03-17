@@ -1,0 +1,32 @@
+[package]
+name = "sdp-parser"
+version = "0.1.0"
+authors = ["David DiMaria <info@collectivesessions.com>"]
+description = "A Session Description Protocol message parser"
+readme = "README.md"
+keywords = ["sdp", "session description protocol", "webrtc", "rust"]
+repository = "https://github.com/ddimaria/rust-sdp-parser"
+documentation = "https://docs.rs/sdp-parser"
+license = "MIT"
+edition = "2018"
+
+[lib]
+name = "sdp_parser"
+path = "src/lib.rs"
+
+[dependencies]
+dotenv = "0.15.0"
+envy = "0.4"
+lazy_static = "1.4.0"
+log = "0.4.14"
+pretty_env_logger = "0.4.0"
+serde = "1.0.136"
+serde_derive = "1.0.136"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+
+[build-dependencies]
+
+[dev-dependencies]
+
+[features]
