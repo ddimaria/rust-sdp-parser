@@ -9,7 +9,7 @@ use std::net::AddrParseError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Serialize)]
 pub enum Error {
     #[error("Parse error: {0}.")]
     Parse(String),
