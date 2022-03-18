@@ -11,6 +11,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug, Serialize)]
 pub enum Error {
+    #[error("Error converting SDP to JSON: {0}.")]
+    ConvertToJson(String),
+
     #[error("Parse error: {0}.")]
     Parse(String),
 }

@@ -1,8 +1,8 @@
 use crate::attribute::Attribute;
 use crate::connection::Connection;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::fingerprint::Fingerprint;
-use crate::media::Media;
+use crate::media::{Candidate, Fmtp, Media, RtcpFb, Rtpmap, Ssrc};
 use crate::origin::Origin;
 use crate::time::Time;
 use crate::utils::{parse_number, parse_str};
@@ -20,7 +20,7 @@ pub struct Sdp<'a> {
     media: Vec<Media<'a>>,
 
     #[serde(skip)]
-    current_media: Option<u32>,
+    current_media: Option<usize>,
 }
 
 impl<'a> Sdp<'a> {
@@ -87,39 +87,53 @@ impl<'a> Sdp<'a> {
     fn parse_media(&mut self, value: &'static str) -> Result<()> {
         let count = self.current_media.unwrap_or(0);
         self.current_media = Some(count + 1);
-
-        println!("MEDIA: {}", value);
         self.media.push(Media::new(&value)?);
+
+        Ok(())
+    }
+
+    fn parse_media_attribute(&mut self, key: &'static str, value: &'static str) -> Result<()> {
+        let count = self.current_media.unwrap_or(0);
+        let mut media = self.media.get_mut(count - 1).unwrap();
+
+        match key {
+            "ptime" => media.ptime = parse_number::<u64>(Some(&value), 1)?,
+            "rtpmap" => media.rtpmap.push(Rtpmap::new(&value)?),
+            "candidate" => media.candidates.push(Candidate::new(&value)?),
+            "fmtp" => media.fmtp.push(Fmtp::new(&value)?),
+            "rtcp-fb" => media.rtc_fb.push(RtcpFb::new(&value)?),
+            "ssrc" => media.ssrc.push(Ssrc::new(&value)?),
+            "direction" => media.direction = value,
+            _ => {
+                unreachable!(
+                    "Media Attribute #{:?}: {} {}",
+                    self.current_media, key, value,
+                );
+            }
+        };
         Ok(())
     }
 
     fn parse_attribute(&mut self, value: &'static str) -> Result<()> {
         let split = value.splitn(2, ':').collect::<Vec<&str>>();
 
-        match split[0] {
-            "ice-ufrag" => self.ice_ufrag = split[1],
-            "ice-pwd" => self.ice_pwd = split[1],
-            "fingerprint" => self.parse_fingerprint(split[1])?,
-            _ => {}
+        if split.len() == 1 {
+            self.parse_media_attribute("direction", split[0])?
+        } else {
+            match split[0] {
+                "ice-ufrag" => self.ice_ufrag = split[1],
+                "ice-pwd" => self.ice_pwd = split[1],
+                "fingerprint" => self.parse_fingerprint(split[1])?,
+                _ => self.parse_media_attribute(split[0], split[1])?,
+            }
         }
-
-        // "rtpmap" "0 PCMU/8000"
-        // "rtpmap" "96 opus/48000"
-        // "ptime" "20"
-        // ["sendrecv"]
-        // "candidate" "0 1 UDP 2113667327 203.0.113.1 54400 typ host"
-        // "candidate" "1 2 UDP 2113667326 203.0.113.1 54401 typ host"
-        // "rtcp-fb" "* nack"
-        // "rtpmap" "97 H264/90000"
-        // "fmtp" "97 profile-level-id=4d0028;packetization-mode=1"
-        // "rtcp-fb" "97 trr-int 100"
-        // "rtcp-fb" "97 nack rpsi"
-        // "rtpmap" "98 VP8/90000"
-        // "rtcp-fb" "98 trr-int 100"
-        // "rtcp-fb" "98 nack rpsi"
 
         Attribute::new(&value)?;
         Ok(())
+    }
+
+    pub fn to_json(&self) -> Result<String> {
+        serde_json::to_string_pretty(&self).map_err(|e| Error::ConvertToJson(e.to_string()))
     }
 }
 
@@ -160,7 +174,6 @@ a=ssrc:1399694169 baz";
     #[test]
     fn it_parses_a_sdp_message() {
         let parsed = Sdp::parse(SDP).unwrap();
-        let json = serde_json::to_string_pretty(&parsed).unwrap();
-        println!("{}", json);
+        println!("{}", parsed.to_json().unwrap());
     }
 }
