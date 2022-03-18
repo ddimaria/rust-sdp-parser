@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate serde_derive;
 
-mod attribute;
 mod connection;
 mod error;
 mod fingerprint;

@@ -1,4 +1,3 @@
-use crate::attribute::Attribute;
 use crate::connection::Connection;
 use crate::error::{Error, Result};
 use crate::fingerprint::Fingerprint;
@@ -128,7 +127,6 @@ impl<'a> Sdp<'a> {
             }
         }
 
-        Attribute::new(&value)?;
         Ok(())
     }
 
