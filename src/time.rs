@@ -3,15 +3,15 @@ use crate::utils::parse_number;
 
 /// SDP Time
 ///
-/// t=-0 0
+/// t=0 0
 /// Gives the starting and ending time. When they are both set to 0 like our
 /// case it means that the session is not bounded to a specific timing- in
 /// other words it’s permanent and valid at any time.
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 pub(crate) struct Time {
-    start_time: u64,
-    stop_time: u64,
-    bounded: bool,
+    pub start_time: u64,
+    pub stop_time: u64,
+    pub bounded: bool,
 }
 
 impl<'a> Time {
@@ -26,5 +26,23 @@ impl<'a> Time {
             stop_time,
             bounded,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_parses_time() {
+        let time = "0 0";
+        let parsed = Time::new(time).unwrap();
+        let expected = Time {
+            start_time: 0,
+            stop_time: 0,
+            bounded: false,
+        };
+
+        assert_eq!(parsed, expected);
     }
 }

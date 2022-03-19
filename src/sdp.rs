@@ -6,7 +6,7 @@ use crate::origin::Origin;
 use crate::time::Time;
 use crate::utils::{parse_number, parse_str};
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 pub struct Sdp<'a> {
     version: u32,
     session_name: &'a str,
@@ -28,7 +28,7 @@ impl<'a> Sdp<'a> {
         let lines = sdp_message.lines();
 
         for line in lines {
-            sdp.parse_line(&line)?;
+            sdp.parse_line(line)?;
         }
 
         Ok(sdp)
@@ -39,14 +39,13 @@ impl<'a> Sdp<'a> {
         let (key, value) = (split[0], split[1].trim());
 
         match key {
-            // globals
-            "v" => self.parse_version(&value)?,
-            "o" => self.parse_origin(&value)?,
-            "s" => self.parse_session_name(&value)?,
-            "t" => self.parse_time(&value)?,
-            "c" => self.parse_connection(&value)?,
-            "a" => self.parse_attribute(&value)?,
-            "m" => self.parse_media(&value)?,
+            "v" => self.parse_version(value)?,
+            "o" => self.parse_origin(value)?,
+            "s" => self.parse_session_name(value)?,
+            "t" => self.parse_time(value)?,
+            "c" => self.parse_connection(value)?,
+            "a" => self.parse_attribute(value)?,
+            "m" => self.parse_media(value)?,
             _ => {}
         };
 
@@ -54,62 +53,64 @@ impl<'a> Sdp<'a> {
     }
 
     fn parse_version(&mut self, value: &str) -> Result<()> {
-        self.version = parse_number::<u32>(Some(&value), 1)?;
+        self.version = parse_number::<u32>(Some(value), 1)?;
         Ok(())
     }
 
     fn parse_origin(&mut self, value: &'static str) -> Result<()> {
-        self.origin = Origin::new(&value)?;
+        self.origin = Origin::new(value)?;
         Ok(())
     }
 
     fn parse_session_name(&mut self, value: &'static str) -> Result<()> {
-        self.session_name = parse_str(Some(&value), 1)?;
+        self.session_name = parse_str(Some(value), 1)?;
         Ok(())
     }
 
     fn parse_time(&mut self, value: &'static str) -> Result<()> {
-        self.time = Time::new(&value)?;
+        self.time = Time::new(value)?;
         Ok(())
     }
 
     fn parse_connection(&mut self, value: &'static str) -> Result<()> {
-        self.connection = Connection::new(&value)?;
+        self.connection = Connection::new(value)?;
         Ok(())
     }
 
     fn parse_fingerprint(&mut self, value: &'static str) -> Result<()> {
-        self.fingerprint = Fingerprint::new(&value)?;
+        self.fingerprint = Fingerprint::new(value)?;
         Ok(())
     }
 
     fn parse_media(&mut self, value: &'static str) -> Result<()> {
         let count = self.current_media.unwrap_or(0);
         self.current_media = Some(count + 1);
-        self.media.push(Media::new(&value)?);
+        self.media.push(Media::new(value)?);
 
         Ok(())
     }
 
     fn parse_media_attribute(&mut self, key: &'static str, value: &'static str) -> Result<()> {
         let count = self.current_media.unwrap_or(0);
-        let mut media = self.media.get_mut(count - 1).unwrap();
 
-        match key {
-            "ptime" => media.ptime = parse_number::<u64>(Some(&value), 1)?,
-            "rtpmap" => media.rtpmap.push(Rtpmap::new(&value)?),
-            "candidate" => media.candidates.push(Candidate::new(&value)?),
-            "fmtp" => media.fmtp.push(Fmtp::new(&value)?),
-            "rtcp-fb" => media.rtc_fb.push(RtcpFb::new(&value)?),
-            "ssrc" => media.ssrc.push(Ssrc::new(&value)?),
-            "direction" => media.direction = value,
-            _ => {
-                unreachable!(
-                    "Media Attribute #{:?}: {} {}",
-                    self.current_media, key, value,
-                );
-            }
-        };
+        if let Some(mut media) = self.media.get_mut(count - 1) {
+            match key {
+                "ptime" => media.ptime = parse_number::<u64>(Some(value), 1)?,
+                "rtpmap" => media.rtpmap.push(Rtpmap::new(value)?),
+                "candidate" => media.candidates.push(Candidate::new(value)?),
+                "fmtp" => media.fmtp.push(Fmtp::new(value)?),
+                "rtcp-fb" => media.rtc_fb.push(RtcpFb::new(value)?),
+                "ssrc" => media.ssrc.push(Ssrc::new(value)?),
+                "direction" => media.direction = value,
+                _ => {
+                    unreachable!(
+                        "Unreachable media attribute #{:?}: {} {}",
+                        self.current_media, key, value,
+                    );
+                }
+            };
+        }
+
         Ok(())
     }
 
@@ -172,6 +173,159 @@ a=ssrc:1399694169 baz";
     #[test]
     fn it_parses_a_sdp_message() {
         let parsed = Sdp::parse(SDP).unwrap();
-        println!("{}", parsed.to_json().unwrap());
+        let expected = Sdp {
+            version: 0,
+            session_name: "",
+            ice_ufrag: "F7gI",
+            ice_pwd: "x9cml/YzichV2+XlhiMu8g",
+            fingerprint: Fingerprint {
+                r#type: "sha-1",
+                hash: "42:89:c5:c6:55:9d:6e:c8:e8:83:55:2a:39:f9:b6:eb:e9:a3:a9:e7",
+            },
+            origin: Origin {
+                username: "-",
+                session_id: 20518,
+                session_version: 0,
+                network_type: "IN",
+                ip_type: "IP4",
+                ip_address: "203.0.113.1",
+            },
+            time: Time {
+                start_time: 0,
+                stop_time: 0,
+                bounded: false,
+            },
+            connection: Connection {
+                network_type: "IN",
+                ip_type: "IP4",
+                ip_address: "203.0.113.1",
+            },
+            media: vec![
+                Media {
+                    r#type: "audio",
+                    port: 54400,
+                    protocol: "RTP/SAVPF",
+                    payloads: "0",
+                    candidates: vec![
+                        Candidate {
+                            component: 0,
+                            foundation: "1",
+                            transport: "UDP",
+                            priority: 2113667327,
+                            ip: "203.0.113.1",
+                            port: 54400,
+                            r#type: "host",
+                        },
+                        Candidate {
+                            component: 1,
+                            foundation: "2",
+                            transport: "UDP",
+                            priority: 2113667326,
+                            ip: "203.0.113.1",
+                            port: 54401,
+                            r#type: "host",
+                        },
+                    ],
+                    direction: "sendrecv",
+                    fmtp: vec![],
+                    ptime: 20,
+                    rtpmap: vec![
+                        Rtpmap {
+                            codec: "PCMU",
+                            payload: "0",
+                            rate: 8000,
+                        },
+                        Rtpmap {
+                            codec: "opus",
+                            payload: "96",
+                            rate: 48000,
+                        },
+                    ],
+                    rtc_fb: vec![],
+                    ssrc: vec![],
+                },
+                Media {
+                    r#type: "video",
+                    port: 55400,
+                    protocol: "RTP/SAVPF",
+                    payloads: "97",
+                    candidates: vec![
+                        Candidate {
+                            component: 0,
+                            foundation: "1",
+                            transport: "UDP",
+                            priority: 2113667327,
+                            ip: "203.0.113.1",
+                            port: 55400,
+                            r#type: "host",
+                        },
+                        Candidate {
+                            component: 1,
+                            foundation: "2",
+                            transport: "UDP",
+                            priority: 2113667326,
+                            ip: "203.0.113.1",
+                            port: 55401,
+                            r#type: "host",
+                        },
+                    ],
+                    direction: "sendrecv",
+                    fmtp: vec![Fmtp {
+                        config: "profile-level-id=4d0028;packetization-mode=1",
+                        payload: 97,
+                    }],
+                    ptime: 0,
+                    rtpmap: vec![
+                        Rtpmap {
+                            codec: "H264",
+                            payload: "97",
+                            rate: 90000,
+                        },
+                        Rtpmap {
+                            codec: "VP8",
+                            payload: "98",
+                            rate: 90000,
+                        },
+                    ],
+                    rtc_fb: vec![
+                        RtcpFb {
+                            payload: "*",
+                            r#type: "nack",
+                        },
+                        RtcpFb {
+                            payload: "97",
+                            r#type: "trr-int",
+                        },
+                        RtcpFb {
+                            payload: "97",
+                            r#type: "nack",
+                        },
+                        RtcpFb {
+                            payload: "98",
+                            r#type: "trr-int",
+                        },
+                        RtcpFb {
+                            payload: "98",
+                            r#type: "nack",
+                        },
+                    ],
+                    ssrc: vec![
+                        Ssrc {
+                            id: 1399694169,
+                            attribute: "foo",
+                            value: Some("bar"),
+                        },
+                        Ssrc {
+                            id: 1399694169,
+                            attribute: "baz",
+                            value: None,
+                        },
+                    ],
+                },
+            ],
+            current_media: Some(2),
+        };
+
+        assert_eq!(parsed, expected);
     }
 }

@@ -9,11 +9,11 @@ use crate::utils::parse_str;
 /// send and receive the real time traffic. As ICE is mandatory in WebRTC the
 /// IP in the c-line is not going to be used.
 ///
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 pub struct Connection<'a> {
-    network_type: &'a str,
-    ip_type: &'a str,
-    ip_address: &'a str,
+    pub network_type: &'a str,
+    pub ip_type: &'a str,
+    pub ip_address: &'a str,
 }
 
 impl<'a> Connection<'a> {
@@ -28,5 +28,22 @@ impl<'a> Connection<'a> {
             ip_type,
             ip_address,
         })
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_parses_a_connection() {
+        let connection = "IN IP4 203.0.113.1";
+        let parsed = Connection::new(connection).unwrap();
+        let expected = Connection {
+            network_type: "IN",
+            ip_type: "IP4",
+            ip_address: "203.0.113.1",
+        };
+
+        assert_eq!(parsed, expected);
     }
 }

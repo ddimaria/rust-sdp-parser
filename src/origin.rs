@@ -14,14 +14,14 @@ use crate::utils::{parse_number, parse_str};
 /// IP address type (version 4) and unicast address of the machine which
 /// created the SDP. These three values are not relevant for the negotiation.
 ///
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 pub struct Origin<'a> {
-    username: &'a str,
-    session_id: u64,
-    session_version: u64,
-    network_type: &'a str,
-    ip_type: &'a str,
-    ip_address: &'a str,
+    pub username: &'a str,
+    pub session_id: u64,
+    pub session_version: u64,
+    pub network_type: &'a str,
+    pub ip_type: &'a str,
+    pub ip_address: &'a str,
 }
 
 impl<'a> Origin<'a> {
@@ -42,5 +42,26 @@ impl<'a> Origin<'a> {
             ip_type,
             ip_address,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_parses_an_origin() {
+        let origin = "- 4611731400430051336 2 IN IP4 127.0.0.1";
+        let parsed = Origin::new(origin).unwrap();
+        let expected = Origin {
+            username: "-",
+            session_id: 4611731400430051336,
+            session_version: 2,
+            network_type: "IN",
+            ip_type: "IP4",
+            ip_address: "127.0.0.1",
+        };
+
+        assert_eq!(parsed, expected);
     }
 }

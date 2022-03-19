@@ -11,10 +11,10 @@ use crate::utils::parse_str;
 /// certificates used in DTLS, if the fingerprint doesn’t match, then the session
 /// should be rejected.
 ///
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 pub struct Fingerprint<'a> {
-    r#type: &'a str,
-    hash: &'a str,
+    pub r#type: &'a str,
+    pub hash: &'a str,
 }
 
 impl<'a> Fingerprint<'a> {
@@ -24,5 +24,22 @@ impl<'a> Fingerprint<'a> {
         let hash = parse_str(split.next(), 2)?;
 
         Ok(Self { r#type, hash })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_parses_a_fingerprint() {
+        let fingerprint = "sha-256 49:66:12:17:0D:1C:91:AE:57:4C:C6:36:DD:D5:97:D2:7D:62:C9:9A:7F:B9:A3:F4:70:03:E7:43:91:73:23:5E";
+        let parsed = Fingerprint::new(fingerprint).unwrap();
+        let expected = Fingerprint {
+            r#type: "sha-256",
+            hash: "49:66:12:17:0D:1C:91:AE:57:4C:C6:36:DD:D5:97:D2:7D:62:C9:9A:7F:B9:A3:F4:70:03:E7:43:91:73:23:5E",
+        };
+
+        assert_eq!(parsed, expected);
     }
 }
