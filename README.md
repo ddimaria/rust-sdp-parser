@@ -3,11 +3,81 @@ Parse a WebRTC Session Description Protocol message.
 Accepts a SDP string and parses into a Rust struct and outputs JSON.
 
 ## The parse() function
-The main function is parse(), which accepts a SDP &str and returns the parsed SDP in JSON format.
+The main function is parse(), which accepts a SDP &str and parses it.
 
 ```rust
-let sdp = parse(sdp_string).unwrap();
-println!("{}:?}", sdp.to_json().unwrap());
+use sdp_parser::parse;
+
+let sdp = parse(sdp_string)?;
+```
+
+## Accessing Parsed Attributes
+
+All struct attributes are public, so accessing their values is straightforward:
+
+```rust
+use sdp_parser::parse;
+
+let sdp = parse(sdp_string)?;
+let first_media = sdp.media.get(0)?;
+println!("{:#?}", first_media);
+```
+
+### Output:
+```rust
+Media {
+    type: "audio",
+    port: 54400,
+    protocol: "RTP/SAVPF",
+    payloads: "0",
+    candidates: [
+        Candidate {
+            component: 0,
+            foundation: "1",
+            transport: "UDP",
+            priority: 2113667327,
+            ip: "203.0.113.1",
+            port: 54400,
+            type: "host",
+        },
+        Candidate {
+            component: 1,
+            foundation: "2",
+            transport: "UDP",
+            priority: 2113667326,
+            ip: "203.0.113.1",
+            port: 54401,
+            type: "host",
+        },
+    ],
+    direction: "sendrecv",
+    fmtp: [],
+    ptime: 20,
+    rtpmap: [
+        Rtpmap {
+            codec: "PCMU",
+            payload: "0",
+            rate: 8000,
+        },
+        Rtpmap {
+            codec: "opus",
+            payload: "96",
+            rate: 48000,
+        },
+    ],
+    rtc_fb: [],
+    ssrc: [],
+}
+```
+
+## JSON Output
+The `sdp.to_json()` function returns the parsed SDP in JSON format.
+
+```rust
+use sdp_parser::parse;
+
+let sdp = parse(sdp_string)?;
+println!("{}:?}", sdp.to_json()?);
 ```
 
 SDP to test: 
