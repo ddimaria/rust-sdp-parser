@@ -1,5 +1,6 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::utils::{parse_number, parse_str};
+use crate::{push_value, set_value};
 
 /// SDP Media
 ///
@@ -140,6 +141,22 @@ impl<'a> Media<'a> {
             payloads,
             ..Default::default()
         })
+    }
+
+    pub(crate) fn parse_attribute(&mut self, attribute: &'a str, value: &'a str) -> Result<()> {
+        match attribute {
+            "ptime" => set_value!(self.ptime, parse_number::<u64>(Some(value), 1)),
+            "rtpmap" => push_value!(self.rtpmap, Rtpmap::new(value)),
+            "candidate" => push_value!(self.candidates, Candidate::new(value)),
+            "fmtp" => push_value!(self.fmtp, Fmtp::new(value)),
+            "rtcp-fb" => push_value!(self.rtc_fb, RtcpFb::new(value)),
+            "ssrc" => push_value!(self.ssrc, Ssrc::new(value)),
+            "direction" => set_value!(self.direction, Result::Ok(value)),
+            _ => Err(Error::Parse(format!(
+                "Unsupported media attribute: {}",
+                attribute
+            ))),
+        }
     }
 }
 

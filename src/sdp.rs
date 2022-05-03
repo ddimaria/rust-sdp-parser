@@ -1,8 +1,9 @@
 use crate::connection::Connection;
 use crate::error::{Error, Result};
 use crate::fingerprint::Fingerprint;
-use crate::media::{Candidate, Fmtp, Media, RtcpFb, Rtpmap, Ssrc};
+use crate::media::Media;
 use crate::origin::Origin;
+use crate::set_value;
 use crate::time::Time;
 use crate::utils::{parse_number, parse_str};
 
@@ -23,7 +24,8 @@ pub struct Sdp<'a> {
 }
 
 impl<'a> Sdp<'a> {
-    pub fn parse(sdp_message: &'static str) -> Result<Self> {
+    // parse each line of the SDP
+    pub fn parse(sdp_message: &'a str) -> Result<Self> {
         let mut sdp = Sdp::default();
         let lines = sdp_message.lines();
 
@@ -34,55 +36,27 @@ impl<'a> Sdp<'a> {
         Ok(sdp)
     }
 
-    fn parse_line(&mut self, line: &'static str) -> Result<()> {
+    // parse an individual SDP line
+    // return errors for invalid entries
+    fn parse_line(&mut self, line: &'a str) -> Result<()> {
         let split = line.splitn(2, '=').collect::<Vec<&str>>();
         let (key, value) = (split[0], split[1].trim());
 
         match key {
-            "v" => self.parse_version(value)?,
-            "o" => self.parse_origin(value)?,
-            "s" => self.parse_session_name(value)?,
-            "t" => self.parse_time(value)?,
-            "c" => self.parse_connection(value)?,
-            "a" => self.parse_attribute(value)?,
-            "m" => self.parse_media(value)?,
-            _ => {}
-        };
-
-        Ok(())
+            "v" => set_value!(self.version, parse_number::<u32>(Some(value), 1)),
+            "o" => set_value!(self.origin, Origin::new(value)),
+            "s" => set_value!(self.session_name, parse_str(Some(value), 1)),
+            "t" => set_value!(self.time, Time::new(value)),
+            "c" => set_value!(self.connection, Connection::new(value)),
+            "a" => self.parse_attribute(value),
+            "m" => self.parse_media(value),
+            _ => Err(Error::Parse(format!("Unsupported attribute: {}", key))),
+        }
     }
 
-    fn parse_version(&mut self, value: &str) -> Result<()> {
-        self.version = parse_number::<u32>(Some(value), 1)?;
-        Ok(())
-    }
-
-    fn parse_origin(&mut self, value: &'static str) -> Result<()> {
-        self.origin = Origin::new(value)?;
-        Ok(())
-    }
-
-    fn parse_session_name(&mut self, value: &'static str) -> Result<()> {
-        self.session_name = parse_str(Some(value), 1)?;
-        Ok(())
-    }
-
-    fn parse_time(&mut self, value: &'static str) -> Result<()> {
-        self.time = Time::new(value)?;
-        Ok(())
-    }
-
-    fn parse_connection(&mut self, value: &'static str) -> Result<()> {
-        self.connection = Connection::new(value)?;
-        Ok(())
-    }
-
-    fn parse_fingerprint(&mut self, value: &'static str) -> Result<()> {
-        self.fingerprint = Fingerprint::new(value)?;
-        Ok(())
-    }
-
-    fn parse_media(&mut self, value: &'static str) -> Result<()> {
+    // media parsing is slightly more complex
+    // maintain state as subsequent lines relate to the current_media
+    fn parse_media(&mut self, value: &'a str) -> Result<()> {
         let count = self.current_media.unwrap_or(0);
         self.current_media = Some(count + 1);
         self.media.push(Media::new(value)?);
@@ -90,31 +64,16 @@ impl<'a> Sdp<'a> {
         Ok(())
     }
 
-    fn parse_media_attribute(&mut self, key: &'static str, value: &'static str) -> Result<()> {
+    fn parse_media_attribute(&mut self, attribute: &'a str, value: &'a str) -> Result<()> {
         let count = self.current_media.unwrap_or(0);
+        let media = self.media.get_mut(count - 1).ok_or_else(|| {
+            Error::Parse("Cannot parse a media attribute before a 'm' line".into())
+        })?;
 
-        if let Some(mut media) = self.media.get_mut(count - 1) {
-            match key {
-                "ptime" => media.ptime = parse_number::<u64>(Some(value), 1)?,
-                "rtpmap" => media.rtpmap.push(Rtpmap::new(value)?),
-                "candidate" => media.candidates.push(Candidate::new(value)?),
-                "fmtp" => media.fmtp.push(Fmtp::new(value)?),
-                "rtcp-fb" => media.rtc_fb.push(RtcpFb::new(value)?),
-                "ssrc" => media.ssrc.push(Ssrc::new(value)?),
-                "direction" => media.direction = value,
-                _ => {
-                    unreachable!(
-                        "Unreachable media attribute #{:?}: {} {}",
-                        self.current_media, key, value,
-                    );
-                }
-            };
-        }
-
-        Ok(())
+        media.parse_attribute(attribute, value)
     }
 
-    fn parse_attribute(&mut self, value: &'static str) -> Result<()> {
+    fn parse_attribute(&mut self, value: &'a str) -> Result<()> {
         let split = value.splitn(2, ':').collect::<Vec<&str>>();
 
         if split.len() == 1 {
@@ -123,7 +82,7 @@ impl<'a> Sdp<'a> {
             match split[0] {
                 "ice-ufrag" => self.ice_ufrag = split[1],
                 "ice-pwd" => self.ice_pwd = split[1],
-                "fingerprint" => self.parse_fingerprint(split[1])?,
+                "fingerprint" => self.fingerprint = Fingerprint::new(split[1])?,
                 _ => self.parse_media_attribute(split[0], split[1])?,
             }
         }
@@ -136,9 +95,26 @@ impl<'a> Sdp<'a> {
     }
 }
 
+#[macro_export]
+macro_rules! set_value {
+    ($attribute:expr, $value:expr) => {{
+        $attribute = $value?;
+        Ok(())
+    }};
+}
+
+#[macro_export]
+macro_rules! push_value {
+    ($attribute:expr, $value:expr) => {{
+        $attribute.push($value?);
+        Ok(())
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::media::{Candidate, Fmtp, Media, RtcpFb, Rtpmap, Ssrc};
 
     const SDP: &'static str = "v=0
 o=- 20518 0 IN IP4 203.0.113.1
